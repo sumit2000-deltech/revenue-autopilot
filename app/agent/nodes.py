@@ -73,11 +73,38 @@ Return ONLY valid JSON, no other text."""
 
 if __name__ == "__main__":
     from app.data.analytics import get_abandoned_orders, get_opportunity_details
+    from app.policy.rules import evaluate_action
+    from app.audit.logger import record_decision
 
     sample_order = get_abandoned_orders()[0]
     evidence = get_opportunity_details(sample_order.id)
 
     result = diagnose_opportunity(evidence)
-
     print("LLM diagnosis (after guardrail):")
     print(json.dumps(result, indent=2))
+
+    if result["candidate_actions"]:
+        chosen = result["candidate_actions"][0]  # simplest choice logic for now: take the first
+        proposed_discount = 5 if chosen["action"] == "discount" else 0
+
+        policy_result = evaluate_action(
+            action=chosen["action"],
+            order_value=evidence["order_value"],
+            proposed_discount_percent=proposed_discount,
+        )
+        print("\nPolicy check result:")
+        print(policy_result)
+
+        audit_id = record_decision(
+            order_id=evidence["order_id"],
+            customer_id=evidence["customer_id"],
+            evidence=evidence,
+            diagnosis=result["diagnosis"],
+            candidate_actions=result["candidate_actions"],
+            selected_action=chosen["action"],
+            policy_decision=policy_result["decision"],
+            policy_reason=policy_result["reason"],
+        )
+        print(f"\nAudit entry saved with id: {audit_id}")
+    else:
+        print("\nNo valid candidate actions after guardrail — nothing to log.")
