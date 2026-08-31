@@ -38,6 +38,7 @@ class Order(Base):
 
     customer = relationship("Customer", back_populates="orders")
     items = relationship("OrderItem", back_populates="order")
+    experiment_group = Column(String, nullable=True)  # "treatment", "control", or None (not yet assigned)
 
 
 class OrderItem(Base):

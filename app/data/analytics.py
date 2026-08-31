@@ -1,3 +1,4 @@
+import random
 from app.data.database import SessionLocal
 from app.data import models
 
@@ -32,6 +33,8 @@ def abandoned_summary():
         "total_lost_value": total_lost_value,
         "stage_breakdown": stage_breakdown,
     }
+
+
 def get_opportunity_details(order_id: int):
     db = SessionLocal()
     order = db.query(models.Order).filter_by(id=order_id).first()
@@ -63,6 +66,26 @@ def get_opportunity_details(order_id: int):
     return details
 
 
+def assign_experiment_groups():
+    """
+    Randomly assigns every abandoned order to 'treatment' or 'control',
+    50/50, ONLY if not already assigned. Real experiments assign once,
+    before any action is taken — never after seeing the outcome.
+    """
+    db = SessionLocal()
+    abandoned = db.query(models.Order).filter_by(status="abandoned").all()
+
+    assigned_count = 0
+    for order in abandoned:
+        if order.experiment_group is None:
+            order.experiment_group = random.choice(["treatment", "control"])
+            assigned_count += 1
+
+    db.commit()
+    db.close()
+    return assigned_count
+
+
 if __name__ == "__main__":
     summary = abandoned_summary()
     print("Abandoned orders:", summary["abandoned_count"])
@@ -72,3 +95,7 @@ if __name__ == "__main__":
     print("\nSample opportunity detail:")
     sample = get_abandoned_orders()[0]
     print(get_opportunity_details(sample.id))
+
+    print("\nAssigning experiment groups...")
+    count = assign_experiment_groups()
+    print(f"Assigned {count} orders to treatment/control groups")
