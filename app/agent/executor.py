@@ -3,7 +3,7 @@ from app.data import models
 from app.integrations.razorpay.client import create_payment_link
 
 
-def execute_action(audit_id: int, simulate_failure: bool = False):
+def execute_action(audit_id: int, simulate_failure: bool = False, dry_run: bool = False):
     """
     Executes the action tied to an audit entry — ONLY if policy_decision is APPROVED.
     Handles Razorpay failures safely: no duplicate action, failure recorded in audit trail.
@@ -16,8 +16,16 @@ def execute_action(audit_id: int, simulate_failure: bool = False):
         return {"status": "error", "reason": "Audit entry not found"}
 
     if entry.policy_decision != "APPROVED":
+        
         db.close()
         return {"status": "blocked", "reason": f"Cannot execute — policy decision was {entry.policy_decision}, not APPROVED"}
+    
+    if dry_run:
+        order = db.query(models.Order).filter_by(id=entry.order_id).first()
+        entry.api_result = f"DRY RUN: would create payment link for ₹{order.total_amount} (not sent to Razorpay — test-mode quota preserved)"
+        db.commit()
+        db.close()
+        return {"status": "dry_run_executed"}
 
     order = db.query(models.Order).filter_by(id=entry.order_id).first()
     customer = db.query(models.Customer).filter_by(id=entry.customer_id).first()

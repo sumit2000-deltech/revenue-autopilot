@@ -85,6 +85,49 @@ def assign_experiment_groups():
     db.close()
     return assigned_count
 
+# Modeling assumption for demo purposes — NOT real customer behavior.
+# These recovery rates represent an assumed uplift from each intervention type.
+SIMULATED_RECOVERY_RATES = {
+    "discount": 0.30,   # 30% of discount-treated customers assumed to convert
+    "reminder": 0.15,   # 15% of reminder-treated customers assumed to convert
+}
+
+
+def simulate_treatment_outcomes():
+    """
+    For treatment-group orders that received a real logged intervention,
+    simulate whether they converted, using SIMULATED_RECOVERY_RATES.
+    This is a modeling assumption, not observed real customer behavior —
+    must be stated as such in any demo or report.
+    """
+    db = SessionLocal()
+
+    treatment_orders = (
+        db.query(models.Order)
+        .filter_by(status="abandoned", experiment_group="treatment")
+        .all()
+    )
+
+    simulated_conversions = 0
+    for order in treatment_orders:
+        audit_entry = (
+            db.query(models.AuditLog)
+            .filter_by(order_id=order.id)
+            .filter(models.AuditLog.api_result.isnot(None))
+            .first()
+        )
+        if not audit_entry:
+            continue  # no real intervention was executed for this order — skip
+
+        recovery_rate = SIMULATED_RECOVERY_RATES.get(audit_entry.selected_action, 0)
+        if random.random() < recovery_rate:
+            order.status = "completed_via_intervention"
+            simulated_conversions += 1
+
+    db.commit()
+    db.close()
+    return simulated_conversions
+
 
 if __name__ == "__main__":
     summary = abandoned_summary()
