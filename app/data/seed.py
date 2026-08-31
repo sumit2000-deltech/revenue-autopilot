@@ -36,7 +36,7 @@ def seed():
 
     # 2. Create customers
     customers = []
-    for _ in range(50):
+    for _ in range(1000):
         c = models.Customer(
             name=fake.name(),
             email=fake.unique.email(),
