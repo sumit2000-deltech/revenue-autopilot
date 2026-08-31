@@ -142,3 +142,6 @@ if __name__ == "__main__":
     print("\nAssigning experiment groups...")
     count = assign_experiment_groups()
     print(f"Assigned {count} orders to treatment/control groups")
+    print("\nSimulating treatment outcomes...")
+    conversions = simulate_treatment_outcomes()
+    print(f"Simulated conversions: {conversions}")
