@@ -3,9 +3,10 @@ from app.data import models
 from app.integrations.razorpay.client import create_payment_link
 
 
-def execute_action(audit_id: int):
+def execute_action(audit_id: int, simulate_failure: bool = False):
     """
     Executes the action tied to an audit entry — ONLY if policy_decision is APPROVED.
+    Handles Razorpay failures safely: no duplicate action, failure recorded in audit trail.
     """
     db = SessionLocal()
     entry = db.query(models.AuditLog).filter_by(id=audit_id).first()
@@ -22,24 +23,31 @@ def execute_action(audit_id: int):
     customer = db.query(models.Customer).filter_by(id=entry.customer_id).first()
 
     if entry.selected_action == "discount":
-        discounted_amount = order.total_amount * 0.95  # 5% discount, matches our earlier test
-        description = f"5% discount on your cart - Revenue Autopilot"
+        discounted_amount = order.total_amount * 0.95
+        description = "5% discount on your cart - Revenue Autopilot"
     else:
         discounted_amount = order.total_amount
-        description = f"Reminder: complete your purchase - Revenue Autopilot"
+        description = "Reminder: complete your purchase - Revenue Autopilot"
 
-    link = create_payment_link(
+    result = create_payment_link(
         amount_in_rupees=discounted_amount,
         customer_name=customer.name,
         customer_email=customer.email,
         description=description,
+        simulate_failure=simulate_failure,
     )
 
-    entry.api_result = f"Payment link created: {link['short_url']} (status: {link['status']})"
-    db.commit()
-    db.close()
-
-    return {"status": "executed", "payment_link": link["short_url"]}
+    if result["success"]:
+        entry.api_result = f"Payment link created: {result['data']['short_url']} (status: {result['data']['status']})"
+        db.commit()
+        db.close()
+        return {"status": "executed", "payment_link": result["data"]["short_url"]}
+    else:
+        # Failure handled safely: no duplicate action, clearly logged, no crash
+        entry.api_result = f"FAILED after {result['attempts']} attempts: {result['error']}"
+        db.commit()
+        db.close()
+        return {"status": "failed", "reason": result["error"]}
 
 
 def approve_pending_action(audit_id: int):
@@ -61,22 +69,16 @@ def approve_pending_action(audit_id: int):
 
     return execute_action(audit_id)
 
-
 if __name__ == "__main__":
-    # Test both paths using real audit entries from our earlier pipeline run
     db = SessionLocal()
     approved_entry = db.query(models.AuditLog).filter_by(policy_decision="APPROVED").first()
-    pending_entry = db.query(models.AuditLog).filter_by(policy_decision="NEEDS_APPROVAL").first()
     db.close()
 
     if approved_entry:
-        print("Executing an already-APPROVED entry:")
+        print("Executing an already-APPROVED entry normally:")
         print(execute_action(approved_entry.id))
+
+        print("\nSimulating a failure on the SAME entry (should not double-log or crash):")
+        print(execute_action(approved_entry.id, simulate_failure=True))
     else:
         print("No APPROVED entry found yet to test with.")
-
-    if pending_entry:
-        print("\nApproving a NEEDS_APPROVAL entry, then executing:")
-        print(approve_pending_action(pending_entry.id))
-    else:
-        print("No NEEDS_APPROVAL entry found yet to test with.")
