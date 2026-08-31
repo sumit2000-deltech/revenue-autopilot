@@ -61,3 +61,24 @@ class CheckoutEvent(Base):
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
     stage_reached = Column(String, nullable=False)  # cart, checkout_started, payment_attempted, completed
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+
+    evidence = Column(String)          # JSON string of the evidence bundle
+    diagnosis = Column(String)         # the LLM's diagnosis text
+    candidate_actions = Column(String) # JSON string of all candidates considered
+    selected_action = Column(String)   # which one was chosen
+
+    policy_decision = Column(String)   # APPROVED / BLOCKED / NEEDS_APPROVAL
+    policy_reason = Column(String)
+
+    api_result = Column(String, nullable=True)  # filled in later, once Razorpay is wired up
