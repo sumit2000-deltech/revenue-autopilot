@@ -33,3 +33,11 @@
 - Estimated incremental revenue caused by the agent: ~₹20,457
 
 **Honest note for the demo:** control staying at exactly 0% is a simplification — in real life, some customers would return and buy on their own even with no action. We're not claiming otherwise; it's a known limitation of this MVP version.
+
+
+
+## Phase: LangGraph orchestration
+
+- Converted our manually-scripted pipeline (diagnose -> policy check -> log -> execute) into a real LangGraph state graph, with each step as a node and one shared "state" object passed between them.
+- The most important new thing: a CONDITIONAL edge after the policy gate. If an action is APPROVED, the graph moves to the execute node. If NEEDS_APPROVAL or BLOCKED, the graph ends right there - the execute node never runs at all. This makes "gated" a structural property of the graph itself, not just an if-check we have to trust.
+- Learned that multi-line Python commands with nested quotes break easily when typed directly into PowerShell - safer to write a small real .py file for any test more than one line long.
