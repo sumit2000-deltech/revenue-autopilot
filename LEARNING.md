@@ -41,3 +41,9 @@
 - Converted our manually-scripted pipeline (diagnose -> policy check -> log -> execute) into a real LangGraph state graph, with each step as a node and one shared "state" object passed between them.
 - The most important new thing: a CONDITIONAL edge after the policy gate. If an action is APPROVED, the graph moves to the execute node. If NEEDS_APPROVAL or BLOCKED, the graph ends right there - the execute node never runs at all. This makes "gated" a structural property of the graph itself, not just an if-check we have to trust.
 - Learned that multi-line Python commands with nested quotes break easily when typed directly into PowerShell - safer to write a small real .py file for any test more than one line long.
+
+## Phase: Direction B (conversational checkout) connected to Direction A
+
+- Built a chat-style product recommender (grounded only in our real catalog, same guardrail pattern as before) plus a function to create a REAL order from that recommendation.
+- Key design choice: an abandoned conversational order is saved using the exact same Order/OrderItem/CheckoutEvent tables as our synthetic data - so our existing LangGraph agent picks it up automatically, with zero new logic. Proved this live: a simulated abandoned chat-checkout flowed straight into diagnose -> policy gate -> execute.
+- Noticed the LLM's diagnosis text mentioned "shipping cost" once, which wasn't in our actual evidence data - a reminder that guardrails on STRUCTURED fields (like action type) don't automatically fact-check every sentence of free-text reasoning.
