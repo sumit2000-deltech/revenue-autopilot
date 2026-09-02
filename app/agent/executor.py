@@ -23,6 +23,7 @@ def execute_action(audit_id: int, simulate_failure: bool = False, dry_run: bool 
     if dry_run:
         order = db.query(models.Order).filter_by(id=entry.order_id).first()
         entry.api_result = f"DRY RUN: would create payment link for ₹{order.total_amount} (not sent to Razorpay — test-mode quota preserved)"
+        entry.payment_link_url = None
         db.commit()
         db.close()
         return {"status": "dry_run_executed"}
@@ -47,6 +48,7 @@ def execute_action(audit_id: int, simulate_failure: bool = False, dry_run: bool 
 
     if result["success"]:
         entry.api_result = f"Payment link created: {result['data']['short_url']} (status: {result['data']['status']})"
+        entry.payment_link_url = result["data"]["short_url"]
         db.commit()
         db.close()
         return {"status": "executed", "payment_link": result["data"]["short_url"]}
@@ -58,7 +60,7 @@ def execute_action(audit_id: int, simulate_failure: bool = False, dry_run: bool 
         return {"status": "failed", "reason": result["error"]}
 
 
-def approve_pending_action(audit_id: int):
+def approve_pending_action(audit_id: int, dry_run: bool = False):
     """
     Simulates a merchant approving a NEEDS_APPROVAL action.
     After approval, immediately attempts execution.
@@ -71,11 +73,11 @@ def approve_pending_action(audit_id: int):
         return {"status": "error", "reason": "No pending approval found for this audit id"}
 
     entry.approved_by_merchant = "approved"
-    entry.policy_decision = "APPROVED"  # now cleared for execution
+    entry.policy_decision = "APPROVED"
     db.commit()
     db.close()
 
-    return execute_action(audit_id)
+    return execute_action(audit_id, dry_run=dry_run)
 
 if __name__ == "__main__":
     db = SessionLocal()

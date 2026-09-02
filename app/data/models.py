@@ -83,4 +83,5 @@ class AuditLog(Base):
     policy_reason = Column(String)
 
     api_result = Column(String, nullable=True)  # filled in later, once Razorpay is wired up
+    payment_link_url = Column(String, nullable=True)
     approved_by_merchant = Column(String, nullable=True)  # None, "approved", "rejected"

@@ -47,3 +47,10 @@
 - Built a chat-style product recommender (grounded only in our real catalog, same guardrail pattern as before) plus a function to create a REAL order from that recommendation.
 - Key design choice: an abandoned conversational order is saved using the exact same Order/OrderItem/CheckoutEvent tables as our synthetic data - so our existing LangGraph agent picks it up automatically, with zero new logic. Proved this live: a simulated abandoned chat-checkout flowed straight into diagnose -> policy gate -> execute.
 - Noticed the LLM's diagnosis text mentioned "shipping cost" once, which wasn't in our actual evidence data - a reminder that guardrails on STRUCTURED fields (like action type) don't automatically fact-check every sentence of free-text reasoning.
+
+## Bug: duplicate route definition silently ignored dry_run
+
+- app/api/routes.py ended up with TWO @router.post("/api/approve/{audit_id}") functions after a partial edit - the old one (no dry_run parameter) stayed in the file alongside the new corrected one.
+- FastAPI registers routes in file order and used the FIRST matching one - so even though the dashboard sent ?dry_run=true, it silently hit the old function that didn't know that parameter existed, and made a real Razorpay call every time.
+- No error was raised anywhere - the request returned 200 OK normally, which is what made this tricky to notice at first (had to check terminal logs for the real Razorpay retry/failure messages to catch it).
+- Lesson: when replacing a function via an edit, search the file for other occurrences of the same function/route name before trusting it's the only one - a duplicate route won't crash, it'll just silently misbehave.

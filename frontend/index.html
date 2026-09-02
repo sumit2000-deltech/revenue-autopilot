@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Revenue Autopilot Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; background: #f7f7f7; }
+    h1 { color: #222; }
+    section { background: white; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+    button { background: #2563eb; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .stat { display: inline-block; margin-right: 2rem; }
+    .stat .value { font-size: 1.5rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Revenue Autopilot</h1>
+
+  <section>
+    <h2>Incremental Revenue Impact</h2>
+    <div id="lift-stats">Loading...</div>
+  </section>
+
+  <section>
+    <h2>Pending Merchant Approvals</h2>
+    <table id="pending-table">
+      <thead><tr><th>ID</th><th>Action</th><th>Reason</th><th>Diagnosis</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Recent Audit Trail</h2>
+    <table id="audit-table">
+      <thead><tr><th>ID</th><th>Action</th><th>Decision</th><th>Result</th><th>Payment Link</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <script>
+    async function loadLift() {
+      const res = await fetch('/api/lift');
+      const data = await res.json();
+      document.getElementById('lift-stats').innerHTML = `
+        <div class="stat"><div class="value">${data.treated_total}</div>Treated Orders</div>
+        <div class="stat"><div class="value">${data.treated_conversion_rate_pct}%</div>Treated Conversion</div>
+        <div class="stat"><div class="value">${data.incremental_lift_pct}%</div>Incremental Lift</div>
+        <div class="stat"><div class="value">₹${data.estimated_incremental_revenue}</div>Est. Incremental Revenue</div>
+      `;
+    }
+
+    async function loadPending() {
+      const res = await fetch('/api/pending-approvals');
+      const data = await res.json();
+      const tbody = document.querySelector('#pending-table tbody');
+      tbody.innerHTML = '';
+      data.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${item.audit_id}</td>
+          <td>${item.selected_action}</td>
+          <td>${item.policy_reason}</td>
+          <td>${item.diagnosis}</td>
+          <td><button onclick="approve(${item.audit_id})">Approve</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function loadAudit() {
+      const res = await fetch('/api/audit-trail');
+      const data = await res.json();
+      const tbody = document.querySelector('#audit-table tbody');
+      tbody.innerHTML = '';
+      data.forEach(item => {
+        const row = document.createElement('tr');
+        const linkCell = item.payment_link_url
+          ? `<a href="${item.payment_link_url}" target="_blank">Open</a>
+             <br><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(item.payment_link_url)}" />`
+          : '-';
+        row.innerHTML = `
+          <td>${item.audit_id}</td>
+          <td>${item.selected_action}</td>
+          <td>${item.policy_decision}</td>
+          <td>${item.api_result || '-'}</td>
+          <td>${linkCell}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function approve(auditId) {
+      await fetch(`/api/approve/${auditId}?dry_run=true`, { method: 'POST' });
+      loadPending();
+      loadAudit();
+    }
+
+    loadLift();
+    loadPending();
+    loadAudit();
+  </script>
+</body>
+</html>
