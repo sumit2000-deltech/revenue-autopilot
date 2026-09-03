@@ -71,6 +71,7 @@ class AuditLog(Base):
 
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
 

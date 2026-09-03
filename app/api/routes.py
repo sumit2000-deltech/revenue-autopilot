@@ -36,22 +36,23 @@ def get_audit_trail():
     db = SessionLocal()
     entries = (
         db.query(models.AuditLog)
-        .order_by(models.AuditLog.id.desc())
-        .limit(20)
+        .order_by(models.AuditLog.updated_at.desc())
+        .limit(50)
         .all()
     )
-    result = [
-        {
+    result = []
+    for e in entries:
+        customer = db.query(models.Customer).filter_by(id=e.customer_id).first()
+        result.append({
             "audit_id": e.id,
             "order_id": e.order_id,
+            "customer_name": customer.name if customer else "Unknown",
             "selected_action": e.selected_action,
             "policy_decision": e.policy_decision,
             "policy_reason": e.policy_reason,
             "api_result": e.api_result,
             "payment_link_url": e.payment_link_url,
-        }
-        for e in entries
-    ]
+        })
     db.close()
     return result
 

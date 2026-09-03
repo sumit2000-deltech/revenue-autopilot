@@ -42,7 +42,7 @@
   <section>
     <h2>Recent Audit Trail</h2>
     <table id="audit-table">
-      <thead><tr><th>Audit ID</th><th>Order ID</th><th>Action</th><th>Decision</th><th>Result</th><th>Payment Link</th></tr></thead>
+     <thead><tr><th>Audit ID</th><th>Order ID</th><th>Customer</th><th>Action</th><th>Decision</th><th>Result</th><th>Payment Link</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -91,6 +91,7 @@
         row.innerHTML = `
           <td>${item.audit_id}</td>
           <td>${item.order_id}</td>
+          <td>${item.customer_name}</td>
           <td>${item.selected_action}</td>
           <td>${item.policy_decision}</td>
           <td>${item.api_result || '-'}</td>
