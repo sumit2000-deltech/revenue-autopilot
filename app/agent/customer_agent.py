@@ -60,11 +60,11 @@ Return ONLY valid JSON, no other text."""
     return result
 
 
-def create_conversational_order(customer_name: str, customer_email: str, recommended_product_id: int) -> dict:
+def create_conversational_order(customer_name: str, customer_email: str, recommended_product_id: int, dry_run: bool = False) -> dict:
     """
-    Creates a real order from a conversational recommendation, and
-    generates a REAL Razorpay payment link for the customer to pay.
-    No random simulation — this is the live, real-money-flow path.
+    Creates a real order from a conversational recommendation.
+    If dry_run=True, skips the real Razorpay call and returns a placeholder
+    link instead — used for safe rehearsal without spending quota.
     """
     db = SessionLocal()
 
@@ -105,13 +105,6 @@ def create_conversational_order(customer_name: str, customer_email: str, recomme
     ))
     db.commit()
 
-    link_result = create_payment_link(
-        amount_in_rupees=product.price,
-        customer_name=customer_name,
-        customer_email=customer_email,
-        description=f"{product.name} - Audio Accessories Store",
-    )
-
     result = {
         "order_id": order.id,
         "customer_id": customer.id,
@@ -119,6 +112,18 @@ def create_conversational_order(customer_name: str, customer_email: str, recomme
         "amount": product.price,
         "status": "pending",
     }
+
+    if dry_run:
+        result["payment_link"] = "https://rzp.io/rzp/DRY-RUN-EXAMPLE"
+        db.close()
+        return result
+
+    link_result = create_payment_link(
+        amount_in_rupees=product.price,
+        customer_name=customer_name,
+        customer_email=customer_email,
+        description=f"{product.name} - Audio Accessories Store",
+    )
 
     if link_result["success"]:
         result["payment_link"] = link_result["data"]["short_url"]
@@ -139,6 +144,7 @@ if __name__ == "__main__":
             customer_name="Demo Customer",
             customer_email="demo.customer@example.com",
             recommended_product_id=rec["recommended_product_id"],
+            dry_run=True,
         )
-        print("\nOrder created from conversation:")
+        print("\nOrder created from conversation (dry run):")
         print(order_result)

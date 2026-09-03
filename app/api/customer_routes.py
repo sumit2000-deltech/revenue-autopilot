@@ -13,6 +13,7 @@ class CheckoutRequest(BaseModel):
     customer_name: str
     customer_email: str
     product_id: int
+    dry_run: bool = True
 
 
 @router.post("/api/customer/recommend")
@@ -26,4 +27,5 @@ def customer_checkout(req: CheckoutRequest):
         customer_name=req.customer_name,
         customer_email=req.customer_email,
         recommended_product_id=req.product_id,
+        dry_run=req.dry_run,
     )
