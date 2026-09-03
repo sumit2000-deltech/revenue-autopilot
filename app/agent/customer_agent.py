@@ -6,13 +6,11 @@ from dotenv import load_dotenv
 from groq import Groq
 from app.data.database import SessionLocal
 from app.data import models
+from app.integrations.razorpay.client import create_payment_link
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 MODEL = "openai/gpt-oss-20b"
-
-# Modeling assumption for demo purposes — NOT real customer behavior.
-CHECKOUT_COMPLETION_RATE = 0.55  # 55% of conversational checkouts assumed to complete immediately
 
 
 def get_full_catalog():
@@ -55,7 +53,6 @@ Return ONLY valid JSON, no other text."""
 
     result = json.loads(response.choices[0].message.content)
 
-    # Hard guardrail: verify the recommended product actually exists in our catalog
     valid_ids = [p["id"] for p in catalog]
     if result["recommended_product_id"] not in valid_ids:
         return {"recommended_product_id": None, "reasoning": "No matching product found in catalog"}
@@ -65,10 +62,9 @@ Return ONLY valid JSON, no other text."""
 
 def create_conversational_order(customer_name: str, customer_email: str, recommended_product_id: int) -> dict:
     """
-    Creates a real order from a conversational recommendation.
-    Simulates whether the customer completes payment immediately.
-    If not completed, this becomes a genuine abandoned order our
-    existing Revenue Autopilot agent can detect and act on.
+    Creates a real order from a conversational recommendation, and
+    generates a REAL Razorpay payment link for the customer to pay.
+    No random simulation — this is the live, real-money-flow path.
     """
     db = SessionLocal()
 
@@ -101,32 +97,34 @@ def create_conversational_order(customer_name: str, customer_email: str, recomme
         price_at_purchase=product.price,
     ))
 
-    completed_now = random.random() < CHECKOUT_COMPLETION_RATE
-
-    if completed_now:
-        order.status = "completed"
-        stage = "completed"
-        customer.total_past_orders += 1
-        customer.total_past_spend += product.price
-    else:
-        order.status = "abandoned"
-        stage = "checkout_started"
-
     db.add(models.CheckoutEvent(
         customer_id=customer.id,
         order_id=order.id,
-        stage_reached=stage,
+        stage_reached="checkout_started",
         timestamp=datetime.now(timezone.utc),
     ))
-
     db.commit()
+
+    link_result = create_payment_link(
+        amount_in_rupees=product.price,
+        customer_name=customer_name,
+        customer_email=customer_email,
+        description=f"{product.name} - Audio Accessories Store",
+    )
+
     result = {
         "order_id": order.id,
         "customer_id": customer.id,
         "product": product.name,
         "amount": product.price,
-        "status": order.status,
+        "status": "pending",
     }
+
+    if link_result["success"]:
+        result["payment_link"] = link_result["data"]["short_url"]
+    else:
+        result["payment_error"] = link_result["error"]
+
     db.close()
     return result
 

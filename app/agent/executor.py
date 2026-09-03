@@ -1,6 +1,7 @@
 from app.data.database import SessionLocal
 from app.data import models
 from app.integrations.razorpay.client import create_payment_link
+from app.integrations.email.client import send_discount_email
 
 
 def execute_action(audit_id: int, simulate_failure: bool = False, dry_run: bool = False):
@@ -50,8 +51,19 @@ def execute_action(audit_id: int, simulate_failure: bool = False, dry_run: bool 
         entry.api_result = f"Payment link created: {result['data']['short_url']} (status: {result['data']['status']})"
         entry.payment_link_url = result["data"]["short_url"]
         db.commit()
+
+        email_result = send_discount_email(
+            customer_email=customer.email,
+            customer_name=customer.name,
+            product_name=description,
+            order_value=discounted_amount,
+            payment_link=result["data"]["short_url"],
+        )
+        if not email_result["success"]:
+            print(f"[EMAIL WARNING] Failed to send email: {email_result['error']}")
+
         db.close()
-        return {"status": "executed", "payment_link": result["data"]["short_url"]}
+        return {"status": "executed", "payment_link": result["data"]["short_url"], "email_sent": email_result["success"]}
     else:
         # Failure handled safely: no duplicate action, clearly logged, no crash
         entry.api_result = f"FAILED after {result['attempts']} attempts: {result['error']}"

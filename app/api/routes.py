@@ -3,7 +3,7 @@ from app.data.database import SessionLocal
 from app.data import models
 from app.agent.executor import approve_pending_action
 from app.data.analytics import measure_incremental_lift
-
+from app.agent.graph import build_graph
 router = APIRouter()
 
 
@@ -58,3 +58,44 @@ def get_audit_trail():
 @router.get("/api/lift")
 def get_lift():
     return measure_incremental_lift()
+
+@router.post("/api/process-new-opportunities")
+def process_new_opportunities():
+    """
+    Finds abandoned orders that haven't been processed by the agent yet,
+    and runs them through the full LangGraph pipeline.
+    Used by the merchant dashboard's 'Check for New Opportunities' button.
+    """
+    db = SessionLocal()
+    processed_order_ids = [row.order_id for row in db.query(models.AuditLog.order_id).all()]
+    new_abandoned = (
+        db.query(models.Order)
+        .filter_by(status="abandoned")
+        .filter(~models.Order.id.in_(processed_order_ids))
+        .limit(10)
+        .all()
+    )
+    order_ids = [o.id for o in new_abandoned]
+    db.close()
+
+    graph = build_graph()
+    results = []
+    for order_id in order_ids:
+        final_state = graph.invoke({"order_id": order_id})
+        results.append({
+            "order_id": order_id,
+            "policy_decision": final_state.get("policy_decision"),
+            "diagnosis": final_state.get("diagnosis"),
+        })
+
+    return {"processed_count": len(results), "results": results}
+
+@router.post("/api/mark-abandoned/{order_id}")
+def mark_abandoned(order_id: int):
+    db = SessionLocal()
+    order = db.query(models.Order).filter_by(id=order_id).first()
+    if order and order.status == "pending":
+        order.status = "abandoned"
+        db.commit()
+    db.close()
+    return {"order_id": order_id, "status": "abandoned"}
