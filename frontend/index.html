@@ -1,117 +1,124 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Shop — Audio Accessories Store</title>
+  <title>Revenue Autopilot Dashboard</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f0f4f8; }
-    .header { background: #111827; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-    .header a { color: #93c5fd; text-decoration: none; font-size: 0.9rem; }
-    .container { max-width: 600px; margin: 2rem auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); overflow: hidden; }
-    .chat-area { padding: 1.5rem; min-height: 200px; }
-    .msg { margin-bottom: 1rem; padding: 0.8rem 1rem; border-radius: 10px; max-width: 80%; }
-    .msg.user { background: #dbeafe; margin-left: auto; text-align: right; }
-    .msg.bot { background: #f3f4f6; }
-    .product-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-top: 0.5rem; }
-    .product-card button { background: #16a34a; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; margin-top: 0.5rem; }
-    .input-area { display: flex; padding: 1rem; border-top: 1px solid #eee; }
-    .input-area input { flex: 1; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; }
-    .input-area button { margin-left: 0.5rem; background: #2563eb; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; }
-    .status { padding: 1rem; background: #fefce8; border-top: 1px solid #fde68a; font-size: 0.9rem; }
+    body { font-family: Arial, sans-serif; margin: 2rem; background: #f7f7f7; }
+    h1 { color: #222; }
+    section { background: white; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+    button { background: #2563eb; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .stat { display: inline-block; margin-right: 2rem; }
+    .stat .value { font-size: 1.5rem; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <strong>🎧 Audio Accessories Store</strong>
-    <a href="/index.html">Merchant Dashboard →</a>
+  <h1>Revenue Autopilot</h1>
+  <p><a href="/customer.html">🛍️ View Customer Shopping Experience</a></p>
+  <button onclick="processNewOpportunities()">🔍 Check for New Opportunities</button>
+  <div id="process-status"></div>
+    <div style="margin-top:0.5rem;font-size:0.85rem;color:#7c2d12;">
+    <label>
+      <input type="checkbox" id="real-approval-toggle" />
+      Use REAL Razorpay execution on Approve (uses quota) — leave unchecked for safe testing
+    </label>
   </div>
 
-  <div class="container">
-    <div class="chat-area" id="chat-area">
-      <div class="msg bot">Hi! Tell me what you're looking for — e.g. "headphones under 3000 rupees with good battery life"</div>
-    </div>
-    <div class="input-area">
-      <input id="chat-input" type="text" placeholder="What are you shopping for?" />
-      <button onclick="sendMessage()">Ask</button>
-    </div>
-  </div>
+  <section>
+    <h2>Incremental Revenue Impact</h2>
+    <div id="lift-stats">Loading...</div>
+  </section>
+
+  <section>
+    <h2>Pending Merchant Approvals</h2>
+    <table id="pending-table">
+      <thead><tr><th>ID</th><th>Action</th><th>Reason</th><th>Diagnosis</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Recent Audit Trail</h2>
+    <table id="audit-table">
+      <thead><tr><th>ID</th><th>Action</th><th>Decision</th><th>Result</th><th>Payment Link</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
 
   <script>
-    let lastRecommendedProductId = null;
-
-    function addMessage(text, sender) {
-      const chatArea = document.getElementById('chat-area');
-      const div = document.createElement('div');
-      div.className = `msg ${sender}`;
-      div.innerHTML = text;
-      chatArea.appendChild(div);
-      chatArea.scrollTop = chatArea.scrollHeight;
-    }
-
-    async function sendMessage() {
-      const input = document.getElementById('chat-input');
-      const message = input.value.trim();
-      if (!message) return;
-
-      addMessage(message, 'user');
-      input.value = '';
-
-      const res = await fetch('/api/customer/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
-      });
+    async function loadLift() {
+      const res = await fetch('/api/lift');
       const data = await res.json();
-
-      if (data.recommended_product_id) {
-        lastRecommendedProductId = data.recommended_product_id;
-        addMessage(`
-          ${data.reasoning}
-          <div class="product-card">
-            <strong>Recommended product #${data.recommended_product_id}</strong>
-            <br><button onclick="checkout()">Buy Now</button>
-          </div>
-        `, 'bot');
-      } else {
-        addMessage(data.reasoning || "Sorry, nothing matched that.", 'bot');
-      }
+      document.getElementById('lift-stats').innerHTML = `
+        <div class="stat"><div class="value">${data.treated_total}</div>Treated Orders</div>
+        <div class="stat"><div class="value">${data.treated_conversion_rate_pct}%</div>Treated Conversion</div>
+        <div class="stat"><div class="value">${data.incremental_lift_pct}%</div>Incremental Lift</div>
+        <div class="stat"><div class="value">₹${data.estimated_incremental_revenue}</div>Est. Incremental Revenue</div>
+      `;
     }
 
-    async function checkout() {
-      const res = await fetch('/api/customer/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer_name: 'Demo Customer',
-          customer_email: `demo.${Date.now()}@example.com`,
-          product_id: lastRecommendedProductId
-        })
-      });
+    async function loadPending() {
+      const res = await fetch('/api/pending-approvals');
       const data = await res.json();
-
-      if (data.payment_link) {
-        addMessage(`
-          Order #${data.order_id} created — ${data.product} (₹${data.amount})<br>
-          <a href="${data.payment_link}" target="_blank">
-            <button>Complete Payment via Razorpay →</button>
-          </a>
-          <br><br>
-          <button onclick="markAbandoned(${data.order_id})" style="background:#dc2626;">
-            Simulate: Didn't Complete Payment
-          </button>
-        `, 'bot');
-      } else {
-        addMessage(`Something went wrong creating the payment link: ${data.payment_error || 'unknown error'}`, 'bot');
-      }
+      const tbody = document.querySelector('#pending-table tbody');
+      tbody.innerHTML = '';
+      data.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${item.audit_id}</td>
+          <td>${item.selected_action}</td>
+          <td>${item.policy_reason}</td>
+          <td>${item.diagnosis}</td>
+          <td><button onclick="approve(${item.audit_id})">Approve</button></td>
+        `;
+        tbody.appendChild(row);
+      });
     }
 
-    async function markAbandoned(orderId) {
-      await fetch(`/api/mark-abandoned/${orderId}`, { method: 'POST' });
-      addMessage(`Order #${orderId} marked as abandoned — check the Merchant Dashboard to see the AI recover it.`, 'bot');
+    async function loadAudit() {
+      const res = await fetch('/api/audit-trail');
+      const data = await res.json();
+      const tbody = document.querySelector('#audit-table tbody');
+      tbody.innerHTML = '';
+      data.forEach(item => {
+        const row = document.createElement('tr');
+        const linkCell = item.payment_link_url
+          ? `<a href="${item.payment_link_url}" target="_blank">Open</a>
+             <br><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(item.payment_link_url)}" />`
+          : '-';
+        row.innerHTML = `
+          <td>${item.audit_id}</td>
+          <td>${item.selected_action}</td>
+          <td>${item.policy_decision}</td>
+          <td>${item.api_result || '-'}</td>
+          <td>${linkCell}</td>
+        `;
+        tbody.appendChild(row);
+      });
     }
 
-    document.getElementById('chat-input').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') sendMessage();
-    });
+     async function approve(auditId) {
+      const isDryRun = !document.getElementById('real-approval-toggle').checked;
+      await fetch(`/api/approve/${auditId}?dry_run=${isDryRun}`, { method: 'POST' });
+      loadPending();
+      loadAudit();
+    }
+    
+
+    async function processNewOpportunities() {
+      document.getElementById('process-status').innerText = 'Checking...';
+      const res = await fetch('/api/process-new-opportunities', { method: 'POST' });
+      const data = await res.json();
+      document.getElementById('process-status').innerText = `Processed ${data.processed_count} new opportunities.`;
+      loadPending();
+      loadAudit();
+    }
+
+    loadLift();
+    loadPending();
+    loadAudit();
   </script>
 </body>
 </html>

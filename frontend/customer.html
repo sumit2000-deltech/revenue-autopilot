@@ -24,7 +24,12 @@
     <strong>🎧 Audio Accessories Store</strong>
     <a href="/index.html">Merchant Dashboard →</a>
   </div>
-
+    <div style="max-width:600px;margin:1rem auto 0;font-size:0.85rem;color:#7c2d12;">
+    <label>
+      <input type="checkbox" id="real-payment-toggle" />
+      Use REAL Razorpay payment (uses quota) — leave unchecked for safe testing
+    </label>
+  </div>
   <div class="container">
     <div class="chat-area" id="chat-area">
       <div class="msg bot">Hi! Tell me what you're looking for — e.g. "headphones under 3000 rupees with good battery life"</div>
@@ -80,10 +85,11 @@
       const res = await fetch('/api/customer/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+          body: JSON.stringify({
           customer_name: 'Demo Customer',
           customer_email: `demo.${Date.now()}@example.com`,
-          product_id: lastRecommendedProductId
+          product_id: lastRecommendedProductId,
+          dry_run: !document.getElementById('real-payment-toggle').checked
         })
       });
       const data = await res.json();
