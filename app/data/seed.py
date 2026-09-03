@@ -58,6 +58,7 @@ def seed():
                 customer_id=customer.id,
                 status="pending",
                 created_at=fake.date_time_between(start_date="-90d", end_date="now"),
+                source="synthetic",
             )
             db.add(order)
             db.commit()  # so order.id is available

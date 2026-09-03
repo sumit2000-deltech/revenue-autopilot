@@ -11,16 +11,17 @@ router = APIRouter()
 def get_pending_approvals():
     db = SessionLocal()
     entries = db.query(models.AuditLog).filter_by(policy_decision="NEEDS_APPROVAL").all()
-    result = [
-        {
+    result = []
+    for e in entries:
+        order = db.query(models.Order).filter_by(id=e.order_id).first()
+        result.append({
             "audit_id": e.id,
             "customer_id": e.customer_id,
+            "source": order.source if order else "synthetic",
             "selected_action": e.selected_action,
             "policy_reason": e.policy_reason,
             "diagnosis": e.diagnosis,
-        }
-        for e in entries
-    ]
+        })
     db.close()
     return result
 
@@ -37,16 +38,18 @@ def get_audit_trail():
     entries = (
         db.query(models.AuditLog)
         .order_by(models.AuditLog.updated_at.desc())
-        .limit(50)
+        .limit(200)
         .all()
     )
     result = []
     for e in entries:
         customer = db.query(models.Customer).filter_by(id=e.customer_id).first()
+        order = db.query(models.Order).filter_by(id=e.order_id).first()
         result.append({
             "audit_id": e.id,
             "order_id": e.order_id,
             "customer_name": customer.name if customer else "Unknown",
+            "source": order.source if order else "synthetic",
             "selected_action": e.selected_action,
             "policy_decision": e.policy_decision,
             "policy_reason": e.policy_reason,

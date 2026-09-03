@@ -1,6 +1,6 @@
 # Merchant policy limits — locked, deterministic, no LLM involved
 MAX_DISCOUNT_PERCENT = 10
-AUTO_APPROVE_ORDER_VALUE_LIMIT = 5000  # orders above this need approval
+AUTO_APPROVE_ORDER_VALUE_LIMIT = 500  # temporary orders above this need approval
 MAX_MESSAGES_PER_CUSTOMER = 2
 
 

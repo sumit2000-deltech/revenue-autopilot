@@ -35,10 +35,11 @@ class Order(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="pending")  # pending, completed, abandoned
     total_amount = Column(Float, default=0.0)
+    source = Column(String, default="synthetic")  # "synthetic" or "live"
+    experiment_group = Column(String, nullable=True)  # "treatment", "control", or None
 
     customer = relationship("Customer", back_populates="orders")
     items = relationship("OrderItem", back_populates="order")
-    experiment_group = Column(String, nullable=True)  # "treatment", "control", or None (not yet assigned)
 
 
 class OrderItem(Base):
@@ -60,10 +61,8 @@ class CheckoutEvent(Base):
     id = Column(Integer, primary_key=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
-    stage_reached = Column(String, nullable=False)  # cart, checkout_started, payment_attempted, completed
+    stage_reached = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
-
-
 
 
 class AuditLog(Base):
@@ -75,14 +74,14 @@ class AuditLog(Base):
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
 
-    evidence = Column(String)          # JSON string of the evidence bundle
-    diagnosis = Column(String)         # the LLM's diagnosis text
-    candidate_actions = Column(String) # JSON string of all candidates considered
-    selected_action = Column(String)   # which one was chosen
+    evidence = Column(String)
+    diagnosis = Column(String)
+    candidate_actions = Column(String)
+    selected_action = Column(String)
 
-    policy_decision = Column(String)   # APPROVED / BLOCKED / NEEDS_APPROVAL
+    policy_decision = Column(String)
     policy_reason = Column(String)
 
-    api_result = Column(String, nullable=True)  # filled in later, once Razorpay is wired up
+    api_result = Column(String, nullable=True)
     payment_link_url = Column(String, nullable=True)
-    approved_by_merchant = Column(String, nullable=True)  # None, "approved", "rejected"
+    approved_by_merchant = Column(String, nullable=True)

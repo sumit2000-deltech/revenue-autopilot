@@ -34,6 +34,10 @@
     <div class="chat-area" id="chat-area">
       <div class="msg bot">Hi! Tell me what you're looking for — e.g. "headphones under 3000 rupees with good battery life"</div>
     </div>
+        <div style="padding:0.75rem 1rem 0;font-size:0.85rem;">
+      <label>Your email (for order confirmation): </label>
+      <input id="customer-email-input" type="email" placeholder="you@example.com" style="padding:0.3rem;border:1px solid #d1d5db;border-radius:4px;width:220px;" />
+    </div>
     <div class="input-area">
       <input id="chat-input" type="text" placeholder="What are you shopping for?" />
       <button onclick="sendMessage()">Ask</button>
@@ -87,7 +91,7 @@
         headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
           customer_name: 'Demo Customer',
-          customer_email: `demo.${Date.now()}@example.com`,
+          customer_email: document.getElementById('customer-email-input').value || `demo.${Date.now()}@example.com`,
           product_id: lastRecommendedProductId,
           dry_run: !document.getElementById('real-payment-toggle').checked
         })

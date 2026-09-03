@@ -7,6 +7,7 @@ from groq import Groq
 from app.data.database import SessionLocal
 from app.data import models
 from app.integrations.razorpay.client import create_payment_link
+from app.integrations.email.client import send_discount_email
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -85,6 +86,7 @@ def create_conversational_order(customer_name: str, customer_email: str, recomme
         created_at=datetime.now(timezone.utc),
         status="pending",
         total_amount=product.price,
+        source="live",
     )
     db.add(order)
     db.commit()
@@ -127,6 +129,17 @@ def create_conversational_order(customer_name: str, customer_email: str, recomme
 
     if link_result["success"]:
         result["payment_link"] = link_result["data"]["short_url"]
+
+        email_result = send_discount_email(
+            customer_email=customer_email,
+            customer_name=customer_name,
+            product_name=product.name,
+            order_value=product.price,
+            payment_link=link_result["data"]["short_url"],
+        )
+        result["email_sent"] = email_result["success"]
+        if not email_result["success"]:
+            print(f"[EMAIL WARNING] {email_result['error']}")
     else:
         result["payment_error"] = link_result["error"]
 
