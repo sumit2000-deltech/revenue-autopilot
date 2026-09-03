@@ -18,13 +18,13 @@
   <h1>Revenue Autopilot</h1>
   <p><a href="/customer.html">🛍️ View Customer Shopping Experience</a></p>
   <button onclick="processNewOpportunities()">🔍 Check for New Opportunities</button>
-  <div id="process-status"></div>
-    <div style="margin-top:0.5rem;font-size:0.85rem;color:#7c2d12;">
+  <div style="margin-top:0.5rem;font-size:0.85rem;color:#7c2d12;">
     <label>
       <input type="checkbox" id="real-approval-toggle" />
       Use REAL Razorpay execution on Approve (uses quota) — leave unchecked for safe testing
     </label>
   </div>
+  <div id="process-status"></div>
 
   <section>
     <h2>Incremental Revenue Impact</h2>
@@ -42,7 +42,7 @@
   <section>
     <h2>Recent Audit Trail</h2>
     <table id="audit-table">
-      <thead><tr><th>ID</th><th>Action</th><th>Decision</th><th>Result</th><th>Payment Link</th></tr></thead>
+      <thead><tr><th>Audit ID</th><th>Order ID</th><th>Action</th><th>Decision</th><th>Result</th><th>Payment Link</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -90,6 +90,7 @@
           : '-';
         row.innerHTML = `
           <td>${item.audit_id}</td>
+          <td>${item.order_id}</td>
           <td>${item.selected_action}</td>
           <td>${item.policy_decision}</td>
           <td>${item.api_result || '-'}</td>
@@ -99,13 +100,12 @@
       });
     }
 
-     async function approve(auditId) {
+    async function approve(auditId) {
       const isDryRun = !document.getElementById('real-approval-toggle').checked;
       await fetch(`/api/approve/${auditId}?dry_run=${isDryRun}`, { method: 'POST' });
       loadPending();
       loadAudit();
     }
-    
 
     async function processNewOpportunities() {
       document.getElementById('process-status').innerText = 'Checking...';

@@ -43,6 +43,7 @@ def get_audit_trail():
     result = [
         {
             "audit_id": e.id,
+            "order_id": e.order_id,
             "selected_action": e.selected_action,
             "policy_decision": e.policy_decision,
             "policy_reason": e.policy_reason,
@@ -72,6 +73,7 @@ def process_new_opportunities():
         db.query(models.Order)
         .filter_by(status="abandoned")
         .filter(~models.Order.id.in_(processed_order_ids))
+        .order_by(models.Order.id.desc())
         .limit(10)
         .all()
     )
