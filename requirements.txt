@@ -7,3 +7,4 @@ groq
 razorpay
 langgraph
 requests
+psycopg2-binary
