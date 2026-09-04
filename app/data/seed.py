@@ -23,8 +23,18 @@ STAGES = ["cart", "checkout_started", "payment_attempted", "completed"]
 
 
 def seed():
+   def seed():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
+
+    # Clear existing data first — safe to re-run on a persistent database
+    db.query(models.CheckoutEvent).delete()
+    db.query(models.OrderItem).delete()
+    db.query(models.AuditLog).delete()
+    db.query(models.Order).delete()
+    db.query(models.Customer).delete()
+    db.query(models.Product).delete()
+    db.commit()
 
     # 1. Create products
     product_objs = []
