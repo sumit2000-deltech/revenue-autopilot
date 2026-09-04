@@ -2,7 +2,8 @@
 
 **An agentic revenue-growth system for Razorpay merchants — built for the Razorpay AI Buildathon, Track 1: AI Growth & Agentic Commerce.**
 
-🔗 **Live demo:** https://revenue-autopilot.onrender.com
+🔗 **Merchant dashboard (live demo):** https://revenue-autopilot.onrender.com
+🛍️ **Customer shopping experience (live demo):** https://revenue-autopilot.onrender.com/customer.html
 *(Free-tier hosting — may take 30-60 seconds to wake up on first load.)*
 
 ---
@@ -20,6 +21,63 @@ Merchants lose revenue in ways that are invisible or hard to act on: abandoned c
 6. Measures whether the intervention **actually caused** additional revenue — not just correlated with it — using a control/treatment comparison
 
 The core differentiator: we don't just report that revenue went up. We estimate the revenue *the agent itself caused*, distinct from revenue that would have happened anyway.
+
+---
+
+## Use Cases
+
+- **Merchant reviewing today's lost revenue** — opens the dashboard, sees every abandoned checkout diagnosed in plain language, with an estimate of what's recoverable.
+- **Low-risk recovery, fully automated** — a small, low-value abandoned cart gets a discount or reminder sent automatically, within merchant-defined limits, no human needed.
+- **High-value recovery, human-in-the-loop** — a large order gets held for explicit merchant approval before any money-related action happens, with the AI's full reasoning visible before the merchant decides.
+- **Conversational commerce** — a customer describes what they want in plain language, gets a real product recommendation, and can check out directly — this is the same "agent-readable catalog / conversational checkout" capability the track calls out, feeding into the exact same recovery engine if the customer doesn't complete payment.
+- **Proving ROI, not just activity** — a merchant (or evaluator) can see not just "we sent 40 discounts" but "these discounts caused an estimated ₹X in revenue that would not have happened otherwise."
+
+---
+
+## How It Works, Step by Step
+
+1. **An order is abandoned** — a customer added items to cart, started checkout, but didn't pay (from either our synthetic merchant data or a real live conversational purchase).
+2. **Evidence is gathered** — order value, cart contents, checkout stage reached, and the customer's purchase history are pulled directly from the database into a structured bundle.
+3. **The LLM diagnoses the opportunity** — given *only* that evidence bundle, it explains why the customer likely abandoned and proposes 1-2 candidate actions from a fixed list (`reminder`, `discount`, `cross_sell`).
+4. **The policy engine checks the proposal** — plain, deterministic Python (no LLM) checks the proposed action against hard-coded merchant rules: max discount %, and an order-value threshold above which auto-execution isn't allowed.
+5. **The decision is logged** — every diagnosis, every candidate action considered, the final decision, and the reason, are written to a permanent audit trail — even if the action is blocked or held.
+6. **Execution (if approved)** — a real Razorpay test-mode payment link is generated for the discounted/reminder amount, with safe retry handling if the call fails, and no duplicate action ever created.
+7. **If held for approval** — the order sits in the merchant dashboard's pending queue, full diagnosis visible, until a human clicks Approve — at which point it's executed the same way.
+8. **Impact is measured** — separately, across a large sample of abandoned orders, we compare outcomes between customers who received an intervention and a held-back control group, to estimate revenue actually caused by the agent (see the math below).
+
+---
+
+## The Math: Measuring Incremental Revenue
+
+This is the project's central differentiator, so it's worth explaining precisely rather than just asserting a number.
+
+**The problem with a naive measurement:** if we send 100 customers a discount and 20 of them complete their purchase, it's tempting to say "the agent generated 20 sales." But some of those 20 might have completed the purchase anyway, discount or not — we don't know how many unless we compare against something.
+
+**The method — control vs. treatment:**
+1. Every abandoned order is randomly assigned, 50/50, to either a **treatment** group (the agent may act on them) or a **control** group (deliberately left untouched, purely to observe the baseline).
+2. For treatment orders that receive a real, executed intervention, we track whether they convert.
+3. For control orders, nothing happens — their conversion rate serves as the baseline for "what would happen with no intervention at all."
+
+**The calculation:**
+treated_conversion_rate = treated_converted / treated_total
+control_conversion_rate = control_converted / control_total
+
+incremental_lift = treated_conversion_rate - control_conversion_rate
+
+estimated_incremental_revenue =
+(incremental_lift) × (number of treated orders) × (average order value)
+
+
+**A concrete example:**
+- Treatment group: 100 abandoned-checkout customers get a discount → 14 complete their purchase (14%)
+- Control group: 100 similar customers get nothing → 10 complete their purchase anyway (10%)
+- **Incremental lift = 14% − 10% = 4 percentage points** — only this 4% is attributable to the agent, not the full 14%
+
+**Two things stated honestly about this methodology, not hidden:**
+- Since we don't have real customers responding to real discounts at scale within a hackathon timeframe, whether a treated order "converts" is modeled using a stated, code-visible assumption (`SIMULATED_RECOVERY_RATES` — e.g. a discount is assumed to recover ~30% of treated customers, a reminder ~15%) — **not observed real behavior**. This is disclosed directly in the code and in the dashboard's underlying data, not obscured.
+- The control group's conversion rate is fixed at 0% by design in this MVP (nothing acts on them, so nothing converts them) — a fuller production experiment would also model organic, unprompted return behavior in the control group, rather than assuming it's exactly zero.
+
+The point of building this the "correct" way — even with a simulated component — is that the *methodology* is real and sound; only the specific recovery-rate assumption is synthetic, and that's the honest, statistically-literate way to build this feature within the time available.
 
 ---
 
@@ -71,9 +129,10 @@ The same discipline applies to money: numbers used in policy checks (discount %,
 - **Backend:** Python, FastAPI
 - **Agent orchestration:** LangGraph (explicit `StateGraph`)
 - **LLM:** Groq (`openai/gpt-oss-20b`)
-- **Database:** SQLite (SQLAlchemy ORM)
+- **Database:** PostgreSQL in production (Render), SQLite for local development — same models work with both via a single environment-variable-driven connection string
 - **Payments:** Razorpay Python SDK, test mode
-- **Frontend:** Plain HTML/JS dashboard (no framework)
+- **Email:** Resend (HTTPS-based API — chosen specifically because Render's free tier blocks traditional SMTP ports)
+- **Frontend:** Plain HTML/JS dashboard and customer chat (no framework)
 - **Deployment:** Render (free tier)
 
 Deliberately not used: Redis, a vector DB/RAG, fine-tuning, a frontend framework — none were needed for this scope, and adding them would have been unjustified complexity.
@@ -85,9 +144,10 @@ Deliberately not used: Redis, a vector DB/RAG, fine-tuning, a frontend framework
 Real issues hit during development, kept honest rather than polished away:
 
 - **Razorpay test-mode has a hard cap of 30 payment links per business account** (undocumented until we hit it during batch testing). Fixed by adding a `dry_run` mode — batch/demo runs simulate execution and log it as clearly labeled "DRY RUN," never disguised as real.
-- **Groq's per-minute token rate limit** was exceeded during a 50-order batch run. Our existing retry/failure-handling logic caught every failure cleanly (no crash), and we added a longer backoff specifically for rate-limit errors.
+- **Groq's per-minute and per-day token rate limits** were both exceeded at different points during testing. Our existing retry/failure-handling logic caught every failure cleanly (no crash), and we added longer backoff specifically for rate-limit errors.
 - **A duplicate route definition** silently caused `dry_run=true` requests to hit the old, unguarded code path — no error was raised, it just silently made real API calls. Found by checking terminal logs for unexpected Razorpay retries, not by any crash. Fixed by removing the duplicate and verifying only one route definition existed.
 - **A double-simulation bug** in our incremental-revenue measurement: unconverted orders weren't marked as "already simulated," so re-running the simulation re-rolled them, inflating the apparent conversion rate (44% vs. the honest ~23.5%). Fixed by giving every order exactly one permanent, non-reversible simulated outcome.
+- **SQLite on Render's free tier is fully ephemeral** — the database was wiped on every redeploy and even on service restarts, forcing a manual reseed before every demo. Fixed by migrating to Render's free PostgreSQL for the deployed environment, while keeping SQLite for local development via a single environment-variable-driven connection string in `database.py` — no other code changed, since SQLAlchemy's ORM is database-agnostic. Confirmed the fix by triggering a full redeploy and verifying data survived without re-seeding.
 
 Full details of each issue, and the reasoning behind every design decision, are in [`LEARNING.md`](./LEARNING.md).
 
@@ -97,11 +157,13 @@ Full details of each issue, and the reasoning behind every design decision, are 
 
 - Customer response to interventions (discount/reminder recovery) is a **modeling assumption**, not observed real behavior — clearly labeled as such in code and data (`SIMULATED_RECOVERY_RATES`).
 - The control group's conversion rate is fixed at 0% by design (nothing acts on them) — a real production experiment would also model organic return behavior in the control group.
-- SQLite on Render's free tier is not persistent across redeploys — the live demo's data is re-seeded via a protected admin endpoint, not meant to survive indefinitely.
+- No payment webhook is implemented — the system does not automatically detect when a real customer completes payment on a generated link; this is demonstrated directly rather than auto-detected, and would be a natural next step for production.
 
 ---
 
 ## Running Locally
+
+*(Local development uses SQLite automatically — no extra setup needed. The deployed version uses PostgreSQL for persistence.)*
 
 ```bash
 git clone https://github.com/sumit2000-deltech/revenue-autopilot.git
@@ -112,10 +174,10 @@ pip install -r requirements.txt
 ```
 
 Create a `.env` file (see `.env.example`) with:
-
-
-
-
+GROQ_API_KEY=your_key
+RAZORPAY_KEY_ID=your_test_key
+RAZORPAY_KEY_SECRET=your_test_secret
+RESEND_API_KEY=your_resend_key
 
 
 Seed the database and run the agent pipeline:
@@ -131,8 +193,19 @@ Start the app:
 ```bash
 uvicorn app.main:app --reload
 ```
-Visit `http://127.0.0.1:8000`.
+Visit `http://127.0.0.1:8000` (merchant dashboard) and `http://127.0.0.1:8000/customer.html` (customer shopping experience).
 
 ---
 
-<!-- persistence test -->
+## Project Structure
+app/
+├── main.py # FastAPI entrypoint
+├── data/ # Models, synthetic data generation, analytics
+├── agent/ # LangGraph agent, diagnosis, executor, batch runner, conversational checkout
+├── policy/ # Deterministic policy/gating engine
+├── integrations/razorpay/ # Razorpay API client
+├── integrations/email/ # Resend email client
+├── audit/ # Audit trail logging
+└── api/ # FastAPI routes (dashboard, customer chat, admin)
+frontend/ # Dashboard + customer chat (plain HTML/JS)
+docs/ # Architecture diagram
